@@ -1,0 +1,221 @@
+#include <FastLED.h>
+
+#define LED_PIN 10
+#define NUM_LEDS 10
+
+
+#define STATE_BREATHING 0
+#define STATE_AGITATED 1
+#define STATE_CRITICAL 2
+
+int i;
+
+int LOW_PPM = 40;
+int MID_PPM = 70;
+
+boolean isOn = false;
+
+unsigned int currentState = STATE_BREATHING;
+
+const int switchPin = 2;//switch
+const int fanExpand = 3;  //output fan 1
+const int fanContract = 5;  //output fan 2
+CRGB leds[NUM_LEDS];
+const int oxygenSensor = A0; //input oxygenSensor value
+//const int qualitySensor = A1;
+const int relay = 11;
+
+
+int switchState = 0; //initialize switch state
+int oxygenSensorReading; //store oxygenSensor value
+int qualitySensorReading;
+
+void setup() {
+  pinMode(switchPin, OUTPUT); //set switchPin pin# as OUTPUT
+  pinMode(fanExpand, OUTPUT); //set fanExpand pin# as OUTPUT
+  pinMode(fanContract, OUTPUT); //set fanContract pin# as OUTPUT
+  pinMode(oxygenSensor, INPUT);//set oxygenSensor pin# as OUTPUT
+//  pinMode(qualitySensor,INPUT);
+  pinMode(relay,OUTPUT);
+  digitalWrite(relay, LOW);
+  //    pinMode(led, OUTPUT);
+  Serial.begin(9600); //set speed of serial data transmission to 9600bps
+  FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
+}
+
+void loop() {
+
+  switchState = digitalRead(switchPin); //read switch status (HIGH or LOW)
+  oxygenSensorReading = analogRead(oxygenSensor);//read oxygenSensor value
+//  qualitySensorReading = analogRead(qualitySensor);
+  
+
+  int oxygenPPM = map(oxygenSensorReading, 0, 1023, 0, 255);//re-map oxygenSensor value range of 0-1023 to 0-255
+  Serial.print("\nPPM: ");
+  Serial.print(oxygenSensorReading);
+
+  if(switchState == HIGH){
+    if(isOn == false) isOn = true;
+    else if(isOn == true) isOn = false;
+    }
+
+//    Serial.print("\nSwitch state: ");
+//    Serial.print(switchState);
+//    Serial.print("\nisOn: ");
+//    Serial.print(isOn);
+
+  if (isOn) {
+    
+    switch(currentState){
+      
+      case STATE_BREATHING:
+      breathPPM();
+      break;
+
+      case STATE_AGITATED:
+      agitated();
+      break;
+
+      case STATE_CRITICAL:
+      critical();
+      break;
+      
+    }
+
+  }
+
+  else {
+    analogWrite(fanExpand, 0);
+    analogWrite(fanContract, 0);
+    digitalWrite(relay, HIGH);
+    
+    for(i=0;i<NUM_LEDS;i++){
+      leds[i] = CRGB(0, 255, 0);
+      }
+      
+//      FastLED.setBrightness(255);
+      FastLED.show();
+  }
+}
+
+void breathPPM(){
+  
+  
+  if (oxygenSensorReading > 0 && oxygenSensorReading < LOW_PPM){
+        
+    for(i=0;i<NUM_LEDS;i++){
+      leds[i] = CRGB(0, 0, 200);
+      
+      }
+      
+    FastLED.show(); 
+    
+    analogWrite (fanExpand, 0);
+    analogWrite (fanContract, 200);
+    digitalWrite(relay, HIGH);
+    
+    delay(3000);
+
+    for(i=0;i<NUM_LEDS;i++){
+      leds[i] = CRGB(0, 0, 255);
+      }
+      
+    FastLED.show();
+
+      
+    analogWrite (fanExpand, 220);
+    analogWrite (fanContract, 0);
+    digitalWrite(relay, HIGH);
+    
+    
+    delay(3000);
+
+//    if(switchState == HIGH){
+//      isOn = false;
+//      }
+  }
+
+else if(oxygenSensorReading > LOW_PPM && oxygenSensorReading < MID_PPM){
+  currentState = STATE_AGITATED;
+  }
+
+else if(oxygenSensorReading > MID_PPM){
+  currentState = STATE_CRITICAL;
+  }
+  
+}
+
+
+void agitated(){
+  
+  if(oxygenSensorReading > LOW_PPM && oxygenSensorReading < MID_PPM){
+
+    for(i=0;i<NUM_LEDS;i++){
+      leds[i] = CRGB(125, 40, 40);  // COLOR DEFINITION
+      }
+      
+      FastLED.show();
+
+    analogWrite(fanExpand, 255);
+    analogWrite(fanContract, 0);
+    digitalWrite(relay, HIGH);
+    delay(1000);
+
+    analogWrite(fanExpand, 0);
+    analogWrite(fanContract, 255);
+    digitalWrite(relay, HIGH);
+    delay(1000);
+
+  }
+
+  else if(oxygenSensorReading > 0 && oxygenSensorReading < LOW_PPM){
+    currentState = STATE_BREATHING;
+  }
+
+  else if(oxygenSensorReading > MID_PPM){
+    currentState = STATE_CRITICAL;
+    }
+}
+
+
+void critical(){
+
+  if (oxygenSensorReading > MID_PPM){
+  
+    for(i=0;i<NUM_LEDS;i++){
+      leds[i] = CRGB(255, 0, 0);  // COLOR DEFINITION
+      }
+      
+    FastLED.show();  
+      
+    analogWrite(fanExpand, 0);
+    analogWrite(fanContract, 255);
+    digitalWrite(relay, HIGH);
+    delay(6000);
+
+
+    for(i=0;i<20;i++){
+      
+      analogWrite(fanExpand, 0);
+      analogWrite(fanContract, 0);
+      digitalWrite(relay, LOW);
+      delay(2000);
+      
+      analogWrite(fanExpand, 0);
+      analogWrite(fanContract, 0);
+      digitalWrite(relay, HIGH);
+      delay(1000);
+      
+    }
+
+  }
+  
+  else if(oxygenSensorReading > 0 && oxygenSensorReading < LOW_PPM){
+    currentState = STATE_BREATHING;
+  }
+
+  else if(oxygenSensorReading > LOW_PPM && oxygenSensorReading < MID_PPM){
+    currentState = STATE_AGITATED;
+    }
+    
+}
