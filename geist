@@ -1,0 +1,191 @@
+var button;
+// var fence;
+var playstatus = false;
+var story1 = false;
+var story2 = false;
+var story3 = false;
+var direction = []; //array of mp3s
+var object = []; //array of mp3s
+var observation = []; //array of mp3s
+var transient = []; //array of mp3s
+var index;
+var indexRound;
+
+//constractor to create new location info
+function Location(name,dlatmin,dlatmax,dlonmin,dlonmax,latmin,latmax,lonmin,lonmax,d0,d1,d2,d3,o0,ob0,t0){
+  this.name = name;
+  this.dlatmin = dlatmin;
+  this.dlatmax = dlatmax;
+  this.dlonmin = dlonmin;
+  this.dlonmax = dlonmax;
+	this.latmin = latmin;
+  this.latmax = latmax;
+  this.lonmin = lonmin;
+  this.lonmax = lonmax;
+  this.d0 = d0; //direction 0
+  this.d1 = d1; //direction 1
+  this.d2 = d2; //direction 2
+  this.d3 = d3; //direction 3
+  this.o0 = o0; //object 0
+  this.ob0 = ob0; //observation 0
+  this.t0 = t0; //transient 0
+}
+
+//arrays for sound files
+var DArray = [
+  "direction[0]",
+  "direction[1]",
+  "direction[2]",
+  "direction[3]"
+];
+
+var OArray = [
+  "object/01.Dock Noise with voice.mp3",
+  "object/02.Orchesta and Voice.mp3",
+  "object/03. bridge.mp3"
+];
+var OBArray = [
+  "observation/01.I was once human.mp3",
+  "observation/02.Look over the edge.mp3",
+  "observation/03.You can still breathe.mp3"
+];
+var TArray = [
+  "transient/01.Bells Ringing with voice.mp3",
+  "transient/02.Boat passing by with sound.mp3",
+  "transient/03.homeless man.mp3"
+];
+
+//randomize sound files
+var ORandom = OArray[Math.floor(Math.random()*OArray.length)]; // Randomize Object
+var OBRandom = OBArray[Math.floor(Math.random()*OBArray.length)]; // Randominze Observation
+var TRandom = TArray[Math.floor(Math.random()*TArray.length)]; // Randomize Transient
+//create new location info
+var sLocation = [];
+// sLocation[0] = new Location('harbor',55.67,56.0,12.590,14.0,55.681,55.6818,12.5940,15.0,DArray[0],DArray[1],DArray[2],DArray[3],ORandom,OBRandom,TRandom);
+sLocation[0] = new Location('harbor',55.67,56.0,12.590,14.0,55.6818,55.6819,12.5940,15.0,DArray[0],DArray[1],DArray[2],DArray[3],ORandom,OBRandom,TRandom);
+
+//preloading sound files & location data
+function preload() {
+  soundFormats('mp3', 'ogg');
+  direction[0] = loadSound('intro/Beginning_shorter.mp3');
+  direction[1] = loadSound('intro/End_shorter.mp3'); 
+  object[0] = loadSound(ORandom);
+  observation[0] = loadSound(OBRandom);
+  transient[0] = loadSound(TRandom);
+  locationData =  getCurrentPosition();
+}
+
+function setup() {
+  createCanvas(displayWidth, 600);
+  background(255);
+  textSize(10);
+  textAlign(LEFT);
+  
+  print("1:"+sLocation[0].dlatmin+" 2:"+sLocation[0].latmin); 
+  print("1:"+sLocation[0].dlonmin+" 2:"+sLocation[0].lonmin); 
+  print(locationData.latitude);
+  print(locationData.longitude);
+  
+//   lFence = new geoFenceCircle(55.682496632, 12.593038047, 0.05, linsideTheFence, loutsideTheFence, 'mi')
+//   sFence = new geoFenceCircle(55.682446377, 12.593310252, 0.02, sinsideTheFence, soutsideTheFence, 'mi')
+ 
+  button = createButton("Listen to the location story");
+  button.position(displayWidth/3, height/2);
+  //button.touchStarted(togglePlaying);
+  button.mouseClicked(togglePlaying);
+  
+  button.style('font-size', '30px');
+  button.style('color', '#605858');
+  button.style('border-style', 'none');
+  button.style('background-color', color(149, 237, 26));
+  var howlongD0 = direction[0].duration();
+  var howlongD1 = direction[1].duration();
+  print('O:'+ORandom+' OB:'+OBRandom+' T:'+TRandom);
+}
+
+//toggle status
+function togglePlaying(){
+  if(!direction[0].isPlaying() || !observation[0].isPlaying){
+    playstatus = true;
+    button.html("continue to listening");
+  }else{
+    playstatus = false;
+    button.html("something wrong");
+  }
+}
+
+function toggleStory(){
+    story1 = true;
+    observation[0].stop();
+    button.html("continue to story 2");
+}
+function toggleStory2(){
+    story2 = true;
+    object[0].stop();
+    button.html("go to endroll");
+}
+function toggleStory3(){
+    story3 = true;
+    transient[0].stop();
+    fill(242,24,24)
+    textSize(30);
+    textAlign(LEFT);
+  	text ('You got 100pt!', width/3,height /3);
+    button.html("See you at next place!");
+}
+
+
+//check current location on every 5 seconds
+function draw() {
+    if(playstatus){
+    print('status is on');
+    intervalCurrentPosition(positionPing, 2000);
+    //intervalCurrentPosition(linsideTheFence, 2000);
+    }else{
+    print('status is off');
+    direction[0].stop();
+    observation[0].stop();
+    }
+  
+}
+
+function positionPing(position){
+  	if(position.latitude > sLocation[0].dlatmin /*&& position.longitude > sLocation[0].dlonmin*/){
+      if(!direction[0].isPlaying()){
+      	direction[0].play();
+        // var currentDuration = direction[0].currentTime();
+        // print('current time is:'+currentDuration);
+        if(position.latitude > sLocation[0].latmin /*|| position.longitude > sLocation[0].lonmin*/){
+          direction[0].stop();
+          if(!observation[0].isPlaying() && !story1){
+            observation[0].setVolume(1.0);
+          	observation[0].play();
+            button.mouseClicked(toggleStory);
+            print('now playing observation');
+          } else if (story1 && !story2 && !object[0].isPlaying()){
+           	// observation[0].stop();
+            object[0].play();
+            button.mouseClicked(toggleStory2);
+            print('now playing object');
+          }
+           else if (story2 && !story3 && !transient[0].isPlaying()){
+           	object[0].stop();
+            transient[0].play();
+            button.mouseClicked(toggleStory3);
+            print('now playing transient');
+          }
+          else if (story3 && !direction[1].isPlaying()){
+            // transient[0].stop();
+            direction[1].play();
+            print('now playing ending');
+          }
+        }
+    } 
+    } 
+}
+
+function keyPressed() {
+  if (keyCode === LEFT_ARROW) {
+    direction[1].play();
+  }
+}
