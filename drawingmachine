@@ -1,0 +1,281 @@
+// Adafruit CCS811 Library - Version: Latest 
+#include <Adafruit_CCS811.h>
+#include <Adafruit_MotorShield.h>// Adafruit_Motor_Shield_V2_Library - Version: Latest 
+#include <Wire.h>// Wire - Version: Latest
+#include <Servo.h>// Servo - Version: Latest 
+#include <NewPing.h>// NewPing - Version: Latest 
+
+Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
+Adafruit_DCMotor *myMotor = AFMS.getMotor(3);
+Adafruit_DCMotor *myMotor2 = AFMS.getMotor(1);
+Adafruit_DCMotor *paintPin2 = AFMS.getMotor(2);
+Adafruit_DCMotor *paintPin3 = AFMS.getMotor(4);
+Adafruit_CCS811 ccs;
+
+const int servoPin = 10;
+const int trigPin = 11;
+const int echoPin = 12;
+long duration;
+int distance;
+int minDistance = 10;
+int wheelSpeed = 30;
+int paintSpeed = 80;
+int wheelBackSpeed = 20;
+
+boolean isOn = false;
+
+unsigned long lastUpdate = 0;
+unsigned long paintTimer = 0;
+int scanPosition = 120;
+int scanDirection = 1; 
+
+const int switchPin =8;
+const int paintPin1 = 5;
+const int uvSensor = A0;
+int switchState =0;
+const int relay = 6;
+const int tempSensor = A1;
+const int airSensor = A2;
+
+float CO2=0;
+float TVOC=0;
+float temperature=0;
+
+//servo
+Servo myservo; 
+
+
+void setup() {
+    myservo.attach(servoPin); 
+    
+    pinMode(paintPin1, OUTPUT);
+    pinMode(switchPin, INPUT);
+    pinMode(relay, OUTPUT);
+    pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
+    pinMode(echoPin, INPUT); // Sets the echoPin as an Input
+    
+    pinMode(uvSensor,INPUT);
+    pinMode(tempSensor,INPUT);
+    pinMode(airSensor,INPUT);
+
+    
+    AFMS.begin(); 
+    
+    if(!ccs.begin()){
+    Serial.println("Failed to start sensor! Please check your wiring.");
+    while(1);
+  }
+  
+  while(!ccs.available());
+  float temp = ccs.calculateTemperature();
+  ccs.setTempOffset(temp - 25.0);
+ 
+  
+  Serial.begin(9600);
+}
+
+void loop() {
+
+  //BUTTON PRESS
+  switchState = digitalRead(switchPin);  
+  
+  //ULTRASONIC SENSOR
+  getDistance();
+  
+  // //AIR SENSOR
+  airSensorRead();
+  
+  if(switchState ==HIGH){   
+    isOn = true;   
+  }
+  
+  if(isOn == true){
+    
+    //MOVE EYES
+    runScan();
+    
+    //PAINT
+    checkPaint();
+    
+    // //RELAY
+    // digitalWrite(relay,LOW);
+    
+    // WHEELS 
+    runWheels();
+  }
+  
+  else{
+    //TURN OFF EVERYTHING
+    offState();
+  }
+    
+}
+
+void getDistance(){
+  
+  //Clear trigPin
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  
+  //Send signal
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  //Calculate distance
+  duration = pulseIn(echoPin, HIGH);
+  distance= duration*0.034/2;
+  // Serial.print("Distance: ");
+  // Serial.println(distance);
+}
+
+void airSensorRead(){
+    if(ccs.available()){
+    float temp = ccs.calculateTemperature();
+    if(!ccs.readData()){
+      // Serial.print("CO2: ");
+      // Serial.print(ccs.geteCO2());
+      CO2 += ccs.geteCO2();
+      // Serial.print("ppm, TVOC: ");
+      // Serial.print(ccs.getTVOC());
+      TVOC += ccs.getTVOC();
+      // Serial.print("ppb   Temp:");
+      // Serial.println(temp);
+      temperature += temp;
+    }
+    else{
+      Serial.println("ERROR!");
+      while(1);
+    }
+  }
+}
+
+
+void runScan(){
+ 
+  int maxAngle=150;
+  int minAngle = 90; 
+ 
+  if(millis()>lastUpdate+50){
+     scanPosition = scanPosition + 9*scanDirection;
+     if(scanPosition>=maxAngle || scanPosition<minAngle){
+       scanDirection = scanDirection*-1;
+     }
+  
+  myservo.write(scanPosition);
+
+   lastUpdate= millis();
+  }  
+}
+
+
+void runWheels(){
+  
+  myMotor->run(BACKWARD);
+  myMotor->setSpeed(wheelSpeed); 
+  
+  myMotor2->run(BACKWARD);
+  myMotor2->setSpeed(wheelSpeed);
+  
+  if(distance <= minDistance){
+    
+    int randNumber = random(0,2);
+   
+    if(randNumber == 0){
+      myMotor->run(FORWARD);
+      myMotor->setSpeed(0);
+      
+      myMotor2->run(FORWARD);
+      myMotor2->setSpeed(wheelBackSpeed);
+      delay(3000);
+    }
+    
+    else{
+      myMotor->run(FORWARD);
+      myMotor->setSpeed(wheelBackSpeed);
+      
+      myMotor2->run(FORWARD);
+      myMotor2->setSpeed(0);
+      delay(3000);
+    }
+    
+  }
+}
+
+void checkPaint(){
+  if(millis()>paintTimer+2000){
+     dropPaint();
+     }
+  CO2 = 0;
+  temperature = 0;
+  TVOC = 0;
+  paintTimer = millis();
+  Serial.println(paintTimer);
+}
+
+
+void dropPaint(){
+  Serial.println("CO2: ");
+  Serial.print(CO2);
+  
+  Serial.println("TVOC: ");
+  Serial.print(TVOC);
+  
+  Serial.println("Temp: ");
+  Serial.print(temperature);
+  
+  int mapCO2 = map(CO2,200,3000,0,255);
+  int mapTVOC = map(TVOC,0,300,0,255);
+  int mapTemp = map(temperature,0,50,0,255);
+  
+  //RUN PINS FOR 2 SECONDS
+  analogWrite(paintPin1,mapCO2);
+  Serial.println("speed1:");
+  Serial.print(mapCO2);
+    
+  paintPin2->run(FORWARD);
+  paintPin2->setSpeed(mapTVOC); 
+  Serial.println("speed2:");
+  Serial.print(mapTVOC);
+  
+  paintPin3->run(FORWARD);
+  paintPin3->setSpeed(mapTemp); 
+  Serial.println("speed3:");
+  Serial.print(mapTemp);
+  delay(4000);
+  
+  //CLOSE PAINT AND RUN FAN FOR 3 SECONDS
+  analogWrite(paintPin1,0);
+    
+  paintPin2->run(FORWARD);
+  paintPin2->setSpeed(0); 
+  
+  paintPin3->run(FORWARD);
+  paintPin3->setSpeed(0); 
+  delay(2000);
+  
+  digitalWrite(relay,LOW);
+  
+  delay(8000);
+  
+  //CLOSE FAN
+  digitalWrite(relay,HIGH);
+}
+
+void offState(){
+      
+  //RELAY
+  digitalWrite(relay,HIGH);
+  
+  //WHEELS
+  myMotor->run(RELEASE);
+  myMotor2->run(RELEASE);
+  
+  //PAINT
+  analogWrite(paintPin1,0);
+  paintPin2->run(RELEASE);
+  paintPin3->run(RELEASE);
+ 
+  //SERVO
+  myservo.write(120);
+}
