@@ -1,0 +1,316 @@
+/* ===
+ml5 Example  
+Image Classification using Feature Extraction with MobileNet and four classes
+=== */
+
+let featureExtractor;
+let classifier;
+let video;
+let loss;
+let classificationResult = "untrained";
+let lastClass = "";
+let playStatus = true; //same as 'triggered'
+
+let myClasses = [];
+let myClassNames = ["Middle Finger", "Italian", "Holding Head","  ", ""]; //Add as many classes as you wish 
+
+let imageState = 0; //control image transition inside the gesture category 
+let pasteState = 0; //control image transition of suggestion to pasting
+let pasteTrigger = false; 
+let inboxTrigger = false; 
+let switchState = false; 
+let switchClass = '';
+let lastState = '';
+let classesInARow = 0;
+
+let imageInbox;
+let imageWriting;
+let imageMF = [];
+let imageIT = [];
+let imageHH = [];
+let imageMFP = [];
+let imageITP = [];
+let imageHHP = [];
+let IMG = [];
+
+
+
+function preload() {
+  imageInbox = loadImage('inbox.jpg');
+  imageWriting = loadImage('boss.jpg');
+  imageMF[0] = loadImage('MF1.jpg');
+  imageMF[1] = loadImage('MF2.jpg');
+  imageMF[2] = loadImage('MF3.jpg');
+  imageIT[0] = loadImage('IT1.jpg');
+  imageIT[1] = loadImage('IT2.jpg');
+  imageIT[2] = loadImage('IT3.jpg');
+  imageHH[0] = loadImage('HH1.jpg');
+  imageHH[1] = loadImage('HH2.jpg');
+  imageHH[2] = loadImage('HH3.jpg');
+  imageMFP[0] = loadImage('MFP1.jpg');
+  imageMFP[1] = loadImage('MFP2.jpg');
+  imageMFP[2] = loadImage('MFP3.jpg');
+  imageITP[0] = loadImage('ITP1.jpg');
+  imageITP[1] = loadImage('ITP2.jpg');
+  imageITP[2] = loadImage('ITP3.jpg');
+  imageHHP[0] = loadImage('HHP1.jpg');
+  imageHHP[1] = loadImage('HHP2.jpg');
+  imageHHP[2] = loadImage('HHP3.jpg');
+}
+
+
+function setup() {
+  createCanvas(720, 450);
+
+  video = createCapture(VIDEO);
+  video.size(900, 800);
+  video.hide();
+
+  // Extract the already learned features from MobileNet
+  featureExtractor = ml5.featureExtractor('MobileNet', modelReady);
+  // Create a new classifier using those features and give the video we want to use
+  classifier = featureExtractor.classification(video, videoReady);
+
+  featureExtractor.numClasses = myClassNames.length;
+
+  for (let i = 0; i < myClassNames.length; i++) {
+    myClasses.push(new Category(myClassNames[i]));
+  }
+  
+  // Set up the UI buttons
+  setupButtons();
+
+  fill(0, 255, 0);
+  textSize(36);
+  textAlign(CENTER);
+}
+
+
+
+function draw() {
+  background(122);
+  //image(video, 0, 0);
+
+  if(switchState ==false && inboxTrigger ==false){
+  image(imageInbox, 0, 0, width, height);//inbox
+  }
+  else if (switchState == false && inboxTrigger){
+    image(imageWriting, 0, 0, width, height);
+    print('inbox called');
+  }
+   else if (switchClass == "MF"){
+      if(imageState == 0){
+      image(imageMF[0], 0, 0, width, height);
+          if(pasteState == 0 && pasteTrigger == true){
+          image(imageMFP[0], 0, 0, width, height);
+        }   
+      } else if(imageState == 1){
+      image(imageMF[1], 0, 0, width, height);
+        if(pasteState == 1 && pasteTrigger == true){
+        image(imageMFP[1], 0, 0, width, height);
+        } 
+      } else if(imageState ==2){
+      image(imageMF[2], 0, 0, width, height);
+        if(pasteState == 2 && pasteTrigger == true){
+        image(imageMFP[2], 0, 0, width, height);
+        } 
+      }  
+    }else if (switchClass == "IT"){
+      if(imageState == 0){
+      image(imageIT[0], 0, 0, width, height);
+          if(pasteState == 0 && pasteTrigger == true){
+          image(imageITP[0], 0, 0, width, height);
+        } 
+      } else if(imageState == 1){
+        image(imageIT[1], 0, 0, width, height);
+        if(pasteState == 1 && pasteTrigger == true){
+        image(imageITP[1], 0, 0, width, height);
+        } 
+      } else if(imageState ==2){
+      image(imageIT[2], 0, 0, width, height);
+        if(pasteState == 2 && pasteTrigger == true){
+        image(imageITP[2], 0, 0, width, height);
+        } 
+      }  
+    }else if (switchClass == "HH"){
+      if(imageState == 0){
+        image(imageHH[0], 0, 0, width, height);
+          if(pasteState == 0 && pasteTrigger == true){
+          image(imageHHP[0], 0, 0, width, height);
+        } 
+      } else if(imageState == 1){
+      image(imageHH[1], 0, 0, width, height);
+        if(pasteState == 1 && pasteTrigger == true){
+        image(imageHHP[1], 0, 0, width, height);
+        } 
+      } else if(imageState ==2){
+      image(imageHH[2], 0, 0, width, height);
+        if(pasteState == 2 && pasteTrigger == true){
+        image(imageHHP[2], 0, 0, width, height);
+        } 
+      }
+  }
+
+   //text(classificationResult, width / 2, height / 2);
+
+  for (let i = 0; i < myClassNames.length; i++) {
+    if (myClasses[i].recordExamples) {
+      addExample(myClasses[i].name);
+      myClasses[i].nExamples++;
+    }
+  }
+  
+  //stabilizer
+  if (classificationResult == lastClass && classificationResult !="untrained") {
+    classesInARow++;
+  }
+  if(classesInARow > 60){
+      switchState = true; 
+  } 
+
+  
+
+  //switch image based on gesture
+  if(classificationResult == "Middle Finger" &&playStatus&&switchState) {
+   switchClass = "MF";
+   playStatus = false;
+  }else if(classificationResult == "Italian"&& playStatus&&switchState){
+   switchClass = "IT";
+   playStatus = false;
+  }else if(classificationResult == "Holding Head"&& playStatus&& switchState){
+   switchClass = "HH";
+   playStatus = false;
+  }
+  
+  
+  textAlign(CENTER);
+  print('CL:'+classificationResult+',LC:'+lastClass+',IS:'+imageState+',PAS:'+pasteState+',PT:'+pasteTrigger+',SS:'+switchState+',SC:'+switchClass+',PS:'+playStatus+',IT:'+inboxTrigger);
+  
+      
+  lastClass = classificationResult;
+  
+}
+
+
+function keyPressed() {
+  if (keyCode === LEFT_ARROW && pasteTrigger==false) {
+    imageState --;
+  } else if (keyCode === RIGHT_ARROW && pasteTrigger==false) {
+    imageState ++;
+  }else if (keyCode === UP_ARROW) {
+    pasteState = imageState;
+    pasteTrigger = true; 
+  }else if (keyCode === DOWN_ARROW) {
+    pasteTrigger = false; 
+  }
+}
+
+function doubleClicked() {
+ // if (mouseX > 3/width && mouseY < 3/height) {
+    inboxTrigger = true;
+  //} 
+}
+
+
+// Category class
+class Category {
+  constructor(s) {
+    this.name = s;
+    this.recordExamples = false;
+    this.nExamples = 0;
+  }
+}
+
+// A function to be called when the model has been loaded
+function modelReady() {
+  select('#modelStatus').html('');
+}
+
+// A function to be called when the video has loaded
+function videoReady() {
+  select('#videoStatus').html('');
+}
+
+// Add the current frame from the video to the classifier
+function addExample(label) {
+  classifier.addImage(label);
+  updateCounts();
+}
+
+// Classify the current frame.
+function classify() {
+  classifier.classify(gotResults);
+}
+
+// Update the example count for each label	
+function updateCounts() {
+
+  for (let i = 0; i < myClassNames.length; i++) {
+    myClasses[i].exampleCount.html(myClasses[i].name + " examples: " + myClasses[i].nExamples || 0);
+  }
+}
+
+// A util function to create UI buttons
+function setupButtons() {
+  //Linebreak
+  linebreak = createDiv('');
+
+  for (let i = 0; i < myClassNames.length; i++) {
+
+    //Buttons for recording new examples
+   // myClasses[i].button = createButton('Add Examples to Class ' + myClasses[i].name)
+      //.mousePressed(() => myClasses[i].recordExamples = true)
+      //.mouseReleased(() => myClasses[i].recordExamples = false);
+
+    //myClasses[i].exampleCount = createP(myClasses[i].name + ' examples');
+
+    //Linebreak
+    linebreak = createDiv('');
+  }
+
+
+  // Train Button
+  train = select('#train');
+  train.mousePressed(function() {
+    classifier.train(function(lossValue) {
+      if (lossValue) {
+        loss = lossValue;
+        select('#loss').html('Loss: ' + loss);
+      } else {
+        select('#loss').html('Done Training! Final Loss: ' + loss);
+      }
+    });
+  });
+
+  // Predict Button
+  buttonPredict = select('#buttonPredict');
+  buttonPredict.mousePressed(classify);
+
+
+  // Save model
+  saveBtn = select('#save');
+  saveBtn.mousePressed(function() {
+    classifier.save();
+  });
+
+  // Load model
+  loadBtn = select('#load');
+  loadBtn.changed(function() {
+    classifier.load(loadBtn.elt.files, function() {
+      select('#modelStatus').html('Custom Model Loaded!');
+    });
+  });
+}
+
+// Show the results
+function gotResults(err, result) {
+  // Display any error
+  if (err) {
+    console.error(err);
+  }
+  //select('#result').html(result);
+
+  classificationResult = result;
+
+  classify();
+}
